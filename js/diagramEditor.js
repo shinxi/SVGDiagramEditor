@@ -356,6 +356,7 @@
 			if (shapeConfig.upperLeft) {
 				this.moveByRelatviePosition(shapeConfig.upperLeft);
 			}
+			this.refresh();
 		},
 		showGizmo: function() {
 			this.gizmo.show(this);
@@ -444,6 +445,18 @@
 				this.move();
 				//}
 			}
+			x = centerPoint.x - 50;
+			y = centerPoint.y - 50;
+			
+			if (x < 0) {
+				this.upperLeft.x = -(this.width * this.scaleNumber / 2 - 50);
+				this.move();
+			}
+			
+			if (y < 0) {
+				this.upperLeft.y = -(this.height * this.scaleNumber / 2 - 50);
+				this.move();
+			}
 		},
 		move: function() {
 			this.node.setAttributeNS(null, "transform", "translate(" + this.upperLeft.x + ", " + this.upperLeft.y +")");
@@ -464,14 +477,14 @@
 				if (scaleNumber != 1) {
 					upperLeft = this.positionAfterRotateAndScale(upperLeft, rotateAngle, rotatePoint, scaleNumber);
 					lowerRight = this.positionAfterRotateAndScale(lowerRight, rotateAngle, rotatePoint, scaleNumber);
-					console.log("upperLeft", upperLeft);
-					console.log("lowerRight", lowerRight);
+					//console.log("upperLeft", upperLeft);
+					//console.log("lowerRight", lowerRight);
 				} else {
 					upperLeft = this.positionAfterRotate(upperLeft, rotateAngle, rotatePoint);
 					lowerRight = this.positionAfterRotate(lowerRight, rotateAngle, rotatePoint);
-					console.log("this.upperLeft", this.upperLeft);
-					console.log("upperLeft", upperLeft);
-					console.log("lowerRight", lowerRight);
+					//console.log("this.upperLeft", this.upperLeft);
+					//console.log("upperLeft", upperLeft);
+					//console.log("lowerRight", lowerRight);
 				}
 			}
 			
@@ -553,6 +566,9 @@
 			"\"angle\": " + this.rotateAngle + "," +
 			"\"scale\": " + this.scaleNumber +
 			"}"
+		},
+		//To avoid weried behavior of those gradient shapes on Chrome browser.
+		refresh: function() {
 		}
 		/*
 		move: function(event) {
