@@ -1,0 +1,50 @@
+body {
+    background: #ddd;
+    margin: 0 auto;
+}
+
+#diagramEditor {
+	background: #fff;
+	width: 70%;
+	margin: 0 auto;
+	height: 600px;
+}
+
+#palette {
+	width: 30%;
+	float: left;
+	height: 100%;
+	border: 1px red solid;
+}
+
+#canvas {
+	width: 69%;
+	float: left;
+	height: 100%;
+	background-color: #F0F0F0;
+	border: 1px blue solid;
+	overflow: auto;
+}
+
+.palette-title{
+	text-align: center;
+	border-bottom: 1px solid black;
+}
+
+.palette-group {
+	width: 100%;
+	text-align: center;
+	border-bottom: 1px solid black;
+}
+
+.palette-group svg{
+	cursor: pointer;
+}
+
+.scale {
+	cursor: ne-resize
+}
+
+.testButtonBar {
+	text-align: center
+}

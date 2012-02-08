@@ -1,0 +1,33 @@
+﻿﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="X-UA-Compatible" content="chrome=1"/>
+    <title>SVG Editor</title>
+    <link rel="stylesheet" href="css/diagramEditor.css" type="text/css" media="screen" title="no title" charset="utf-8" />
+    <link rel="stylesheet" href="css/jquery.svg.css" type="text/css" media="screen" title="no title" charset="utf-8" />
+    <script type="text/javascript" src="js/jquery-1.6.2.min.js"></script>
+    <script type="text/javascript" src="js/jquery-ui-1.8.16.custom.min.js"></script>
+    <script type="text/javascript" src="js/jquery.svg.min.js"></script>
+    <script type="text/javascript" src="js/diagramEditor.js"></script>
+    <script type="text/javascript" src="js/cal.js"></script>
+    <script type="text/javascript">
+    $(document).ready(function() {
+    	$("#editor").SVGDiagram();
+    	
+    	$("#saveBtn").click(function() {
+    		$("#editor").SVGDiagram("save");
+    	})
+    	
+    	$("#loadBtn").click(function() {
+    		$("#editor").SVGDiagram("load", "loadid");
+    	})
+    })
+    </script>
+</head>
+<body>
+<div class="testButtonBar"><input type="button" id="saveBtn" value="saveDiagram"/><input type="button" id="loadBtn" value="loadDiagram"/></div>
+    <div id="editor">
+	</div>
+</body>
+</html>
