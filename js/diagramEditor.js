@@ -98,6 +98,7 @@
 			var width = 0;
 			var height = 0;
 			var shapeStencils = this.shapeStencils;
+			var palette = this;
 			$(paletteJSON).each(function() {
         		var group = this;
        		 	$.ajax({
@@ -111,7 +112,10 @@
 	       	        	var groupDiv = "<div id='" + groupName + "'name='" + groupName + "' class='palette-group'></div>";
 	       	        	$(".palette-groups").append(groupDiv);
 	       	        	$(".palette-group:last").append(svgElement);
-	       	        	shapeStencils[groupName] = svgElement;
+	       	        	shapeStencils[groupName] = {
+	       	        			"origin": svgElement,
+	       	        			"new": tool.newSVGElement(svgElement)
+	       	        	}
        			   	}
        			});
        			
@@ -119,7 +123,9 @@
         	$(".palette-group svg").draggable({
         		cursor: 'pointer', 
         		helper: function(){
-        			return $(this).parent().clone().css({"border":"0px"}).width($(this).width()).height($(this).height());
+        			var svgDiv = $(this).parent().clone().css({"border":"0px"}).width($(this).width()).height($(this).height());
+        			svgDiv.empty().append(shapeStencils[svgDiv.attr("name")]["new"]);
+        			return svgDiv;
         		}
         	})
         	$("#" + this.container.id).height($(".palette-groups").height() + $(".palette-title").height());
@@ -163,7 +169,7 @@
 				tolerance: "fit",
 				drop: function( event, ui ) {
 					var shapeName = ui.helper.attr("name");
-					var svgDocument = ui.helper.find("svg")[0];
+					var svgDocument = tool.newSVGElement(ui.helper.find("svg")[0]);
 					var shapeConfig;
 					var svgRootElement;
 					var width;
@@ -1029,6 +1035,8 @@
 	};
 	
 	function Tool() {
+		this.svgShapeTags = ["rect", "circle", "ellipse", "line", "polyline", "polygon", "path"];
+		this.gradientTags = ["linearGradient", "radialGradient"];
 	}
 	$.extend(Tool.prototype, {
 		genUUID: function() {
@@ -1040,6 +1048,43 @@
 		    for (var i = 0; i < 36; i++) res[i] = hex[res[i]];
 		    res[8] = res[13] = res[18] = res[23] = '-';
 		    return res.join('');
+		},
+		newSVGElement: function(origin) {
+			var newSVG = $(origin).clone()[0];
+			var shapeTags = this.svgShapeTags;
+			var nodes;
+			var nodeStyle;
+			var newId;
+			var oldId;
+			var result;
+			var palette = this;
+			var defsEle = newSVG.getElementsByTagName("defs");
+			$(shapeTags).each(function() {
+				nodes = newSVG.getElementsByTagName(this);
+				$(nodes).each(function() {
+					nodeStyle = this.getAttribute("style")
+					if (result = /fill:url\(#(.+)\)/.exec(nodeStyle)) {
+						oldId = result[1];
+						newId = tool.genUUID();
+						this.setAttributeNS(null, "style", nodeStyle.replace(/fill:url\(#.+\)/, "fill:url(#" + newId + ")"));
+						palette.setGradientNewId(oldId, newId, defsEle);
+					}
+				})
+			})
+			return newSVG;
+		},
+		setGradientNewId: function(oldId, newId, defsEle) {
+			var def;
+			var childNodes;
+			$(defsEle).each(function() {
+				def = this;
+				childNodes = def.childNodes;
+				$(childNodes).each(function() {
+					if (this.attributes && oldId === this.getAttribute("id")) {
+						this.setAttributeNS(null, "id", newId);
+					}
+				})
+			})
 		},
 		parseCSVFileToJSON: function(csvData) {
 			var startTime = new Date().getTime();
