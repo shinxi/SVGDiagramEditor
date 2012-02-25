@@ -1,10 +1,18 @@
 /**
- * diagram editor plugin, based on jquery framework and jquery.svg plugin.
- * If you want to use this plugin, you need import jquery.js and jquery.svg.js to your page first.
+ * Diagram editor plugin. Five widgets are concluded in this plugin.
+ * Widgets:
+ *   editor.SVGDiagram: The whole interface to be invoked outside.
+ *   editor.palette: palette object. Functions: palette generation, shape drag definition. 
+ *   editor.canvas: canvas object. Functions: canvas generation, shape drop definition, add shape into canvas and so on.
+ *   editor.shape: shape object. Functions: shape generation, shape move, shape scale, shape rotate, show shape gizmo, and so on.
+ *                 When a shape is dragged into a canvas, one shape object will be created. 
+ *   editor.gizmo: gizmo object. Functions: show, hide, move and so on. Only one gizmo object will existed in canvas. 
+ *   
+ * Depends:
+ *	jquery.js, jquery.svg.js, jquery-ui.js
  * @author Shin.Xi
  */
 (function($) {
-	var tool = new Tool();
 	if(!Function.prototype.bind) {
 		Function.prototype.bind = function(obj) {
 	        if(typeof this !== 'function') {
@@ -15,6 +23,7 @@
 	        var aArgs = fSlice.call(arguments, 1);
 	        var fToBind = this;
 	        var fBound = function() {
+	        	//such function like click events will add event parameter as an argument at runtime, so aArgs.concat(fSlice.call(arguments));
                 return fToBind.apply(obj || window, aArgs.concat(fSlice.call(arguments)));
             };
 	         
@@ -22,39 +31,36 @@
 	    };
 	}
 	
-	function SVGDiagramEditorContainer() {
-		this.palette = new Palette();
-		this.canvas = new Canvas();
-		this.id;
-		/*
-		 * example: {width: "800px", height: "600px", palette: {width: "300px", height: "600px"}, canvas: {width: "500px", height: "600px"}}
-		 */
-		this.settings = {
-				id: "diagramEditor",
-				html: "<div></div>",
-				configPath : "svg/svgConfig.csv"
-		};
-	}
-	
-	$.extend(SVGDiagramEditorContainer.prototype, {
-		init: function(container, options) {
-			var self = this;
-			var settings = $.extend( this.settings, options);
-			this.id = settings.id;
-			container.append($(settings.html).attr("id", this.id));
-			this.palette.init(this, settings.palette);
-			this.canvas.init(this, settings.canvas);
-			$.get(settings.configPath, function(csvData){
-				self.svgData = new Tool().parseCSVFileToJSON(csvData);
-				self.palette.initPalette(self.svgData.palette);
-				self.canvas.initCanvasGizmo(self.svgData.gizmo);
+	$.widget("editor.SVGDiagram", {
+		options: {
+			id: "diagramEditor",
+			html: "<div><div id='palette'><div class='palette-title'><span>PALETTE</span></div><div class='palette-groups'></div></div><div id='canvas'></div></div>",
+			configPath : "svg/svgConfig.csv"
+		},
+		_create: function() {
+			this.init();
+		},
+		init: function(container) {
+			var options = this.options;
+			this.id = options.id;
+			this.element.append($(options.html).attr("id", this.id));
+			//create palette widget
+			$("#canvas").palette({container: this});
+			//create canvas widget
+			$("#canvas").canvas({container: this});
+			//create utility widget on $("#canvas")
+			$("#canvas").utility();
+			$.get(options.configPath, function(csvData){
+				var svgData = $("#canvas").utility("parseCSVFileToJSON", csvData);
+				$("#canvas").palette("initPalette", svgData.palette);
+				//self.canvas.initCanvasGizmo(self.svgData.gizmo);
+				$("#canvas").canvas("initCanvasGizmo", svgData.gizmo);
 			});
-			return container;
 		},
 		load: function(diagramId) {
 			var self = this;
 			$.getJSON("test/loadJSON.json", function(response) {
-				self.canvas.load(response);
+				$("#canvas").canvas("load", response);
 			})
 		},
 		save: function() {
@@ -75,24 +81,17 @@
 			 *   ]
 			 * 
 			 */
-			console.log(this.canvas.save());
+			console.log($("#canvas").canvas("save"));
 		}
-	})
+	});
 	
-	function Palette() {
-		this.container;
-		this.settings = {
-				diagramID: "diagramEditor",
-				html: "<div id='palette'><div class='palette-title'><span>PALETTE</span></div><div class='palette-groups'></div></div>"
-		};
-		this.shapeStencils = {};
-	}
-	
-	$.extend(Palette.prototype, {
-		init: function(container, options) {
-			this.container = container;
-			var settings = $.extend( this.settings, options);
-			$("#" + container.id).append(settings.html);
+	$.widget("editor.palette", {
+		options: {
+			"container": null
+		},
+		_create: function() {
+			this.container = this.options.container;
+			this.shapeStencils = {};
 		},
 		initPalette: function(paletteJSON) {
 			var width = 0;
@@ -114,7 +113,7 @@
 	       	        	$(".palette-group:last").append(svgElement);
 	       	        	shapeStencils[groupName] = {
 	       	        			"origin": svgElement,
-	       	        			"new": tool.newSVGElement(svgElement)
+	       	        			"new": $("#canvas").utility("newSVGElement", svgElement)
 	       	        	}
        			   	}
        			});
@@ -130,35 +129,38 @@
         	})
         	$("#" + this.container.id).height($(".palette-groups").height() + $(".palette-title").height());
 		}
-	})
+	});
 	
-	function Canvas() {
-		this.container;
-		this.svg;
-		this.svgWrapper;
-		//this.rootNode = null;
-		this.shapes = [];
-		this.settings = {
-				id: "canvas",
-				html: "<div id='canvas'></div>",
-				width: 1600,
-				height: 1000
-		};
-		//{"containerNode": svgDoc, "btns": {"copy": svgDoc,...}}
-		this.gizmoSVGs;
-		this.id;
-		this.gizmo;
-	}
-	
-	$.extend(Canvas.prototype, {
-		init: function(container, options) {
+	$.widget("editor.canvas", {
+		options: {
+			"container": null
+		},
+		_create: function() {
+			this.container;
+			this.svg;
+			this.svgWrapper;
+			//this.rootNode = null;
+			this.shapes = [];
+			this.settings = {
+					id: "canvas",
+					width: 1600,
+					height: 1000
+			};
+			//{"containerNode": svgDoc, "btns": {"copy": svgDoc,...}}
+			this.gizmoSVGs;
+			this.id;
+			this.gizmo;
+			this.init();
+
+		},
+		init: function() {
 			var svgWrapper;
 			var svgRoot;
-			var settings;
+			var settings = this.settings;
 			var canvas = this;
+			var container = this.options.container;
 			this.container = container;
-			this.id = tool.genUUID();
-			settings = $.extend(this.settings, options);
+			this.id = $("#canvas").utility("genUUID");
 			$("#" + container.id).append(settings.html);
 			$("#" + settings.id).svg();
 			svgWrapper = $("#" + settings.id).svg("get");
@@ -169,7 +171,7 @@
 				tolerance: "fit",
 				drop: function( event, ui ) {
 					var shapeName = ui.helper.attr("name");
-					var svgDocument = tool.newSVGElement(ui.helper.find("svg")[0]);
+					var svgDocument = $("#canvas").utility("newSVGElement", ui.helper.find("svg")[0]);
 					var shapeConfig;
 					var svgRootElement;
 					var width;
@@ -194,28 +196,29 @@
 				}
 			});
 			this.svgWrapper = svgWrapper;
-			$(svgRoot).bind("mouseup",this.reset.bind(canvas));
 		},
 		load: function(json) {
 			var canvas = this;
 			canvas.clear();
 			canvas.id = json.id;
 			var shapes = json.shapes;
-			var shapeStencils = this.container.palette.shapeStencils;
+			var shapeStencils = $("#canvas").data("palette").shapeStencils;
 			$(shapes).each(function() {
 				var name = this.name;
-				var stencil = shapeStencils[name];
-				var svgElement;
+				var svgDocument = $("#canvas").utility("newSVGElement", shapeStencils[name]["origin"]);
+				var svgRootElement;
+				var defsElement;
 				var config;
-				var shape;
-				if (!stencil) {
+				if (!svgDocument) {
 					return;
 				}
-				svgElement = stencil.getElementsByTagName("g")[0];
+				svgRootElement = svgDocument.getElementsByTagName("g")[0];
+				defsElement = svgDocument.getElementsByTagName("defs")[0];
 				config = {
-						rootEle: svgElement,
-						width: parseInt($(stencil).width() || $(stencil).attr("width")),
-						height: parseInt($(stencil).height() || $(stencil).attr("height")),
+						rootEle: svgRootElement,
+						defsEle: defsElement,
+						width: parseInt($(svgDocument).width() || $(svgDocument).attr("width")),
+						height: parseInt($(svgDocument).height() || $(svgDocument).attr("height")),
 						name: name,
 						angle: this.angle,
 						scale: this.scale,
@@ -250,13 +253,13 @@
 			return json;
 		},
 		addShape: function(shapeConfig) {
-			var shape = new Shape();
-			shape.init(this, shapeConfig);
+			var node = shapeConfig.rootEle;
+			var shape = $(node).shape(shapeConfig).data("shape");
 			this.shapes.push(shape);
 			return shape;
 		},
 		initCanvasGizmo: function(gizmoJSON) {
-			var start = new Date().getTime();
+			//var start = new Date().getTime();
 			var config = {"containerNode": "", "btns": {}};
 			var btnName;
 			var svgDoc;
@@ -278,50 +281,53 @@
        			   	}
        			});
 			})
-			this.gizmoSVGs = config;
-			var gizmo = new Gizmo();
-			gizmo.init(this);
-			this.gizmo = gizmo;
-			//gizmo.node.style.display = "none";
-			var end = new Date().getTime();
-			console.log("takes:", (end-start), config, this.gizmoSVGs);
-			//this.svgWrapper.add(this.gizmo.node)
-		},
-		reset: function(){
-			var shapes = this.shapes;
-			$(shapes).each(function() {
-				this.gizmo.reset();
-			})
+			
+			$("#canvas").gizmo({config: config});
+			this.gizmo = $("#canvas").data("gizmo");
+			//var end = new Date().getTime();
+			//console.log("takes:", (end-start), config, this.gizmoSVGs);
 		}
-	})
+	});
 	
-	function Shape() {
-		this.id;
-		this.name;
-		this.canvas;
-		this.node;
-		this.rotateGroup;
-		this.gizmo;
-		this.objectGroup;
-		this.upperLeft = {"x" : 0, "y" : 0};//lower left position
-		//this.lowerRight = {"x" : 0, "y" : 0};//lower left position
-		this.width;
-		this.height;
-		this.rotateAngle = 0;
-		this.scaleNumber = 1;
-		this.shapeConfig;
-		this.rotatePoint;
-	}
-	
-	$.extend(Shape.prototype, {
-		init: function(canvas, shapeConfig) {
-			var svgGroupElement = shapeConfig.rootEle;
+	$.widget("editor.shape", {
+		options: {
+			"name": "",
+			"width": "",
+			"height": "",
+			"defsEle": null,
+			"scale": "",
+			"angle": "",
+			"upperLeft": null
+			
+		},
+		_create: function() {
+			this.id;
+			this.name;
+			this.canvas;
+			this.node;
+			this.rotateGroup;
+			this.gizmo;
+			this.objectGroup;
+			this.upperLeft = {"x" : 0, "y" : 0};//lower left position
+			this.width;
+			this.height;
+			this.rotateAngle = 0;
+			this.scaleNumber = 1;
+			this.shapeConfig;
+			this.rotatePoint;
+			this.init();
+
+		},
+		init: function() {
+			var shapeConfig = this.options;
+			var svgGroupElement = this.element[0];
+			var canvas = $("#canvas").data("canvas");
 			this.canvas = canvas;
 			var svgWrapper = canvas.svgWrapper;
 
 			this.shapeConfig = shapeConfig;
 			
-			this.id = tool.genUUID();
+			this.id = $("#canvas").utility("genUUID");
 			this.name = shapeConfig.name;
 			
 			this.node = svgWrapper.group(this.id);
@@ -331,9 +337,6 @@
 			
 			this.objectGroup = svgWrapper.group(this.rotateGroup);
 			svgWrapper.configure(this.objectGroup, {"class": "objectGroup"});
-			
-			//this.gizmo = svgWrapper.group(this.rotateGroup);
-			//svgWrapper.configure(this.gizmo, {"class": "gizmo"});
 			
 			this.width = shapeConfig.width;
 			this.height = shapeConfig.height;
@@ -348,8 +351,6 @@
 			
 			this.gizmo = this.canvas.gizmo;
 			
-//			this.node.addEventListener("click", this.moveByDragPosition.bind(this), true);
-
 			var shape = this;
 			$(this.node).bind("click", this.showGizmo.bind(shape));
 			
@@ -362,7 +363,6 @@
 			if (shapeConfig.upperLeft) {
 				this.moveByRelatviePosition(shapeConfig.upperLeft);
 			}
-			this.refresh();
 		},
 		showGizmo: function() {
 			this.gizmo.show(this);
@@ -376,15 +376,9 @@
 					"x" : upperLeft.x + position.x,
 					"y"	: upperLeft.y + position.y
 			}
-			/*
-			this.lowerRight = {
-					"x" : this.upperLeft.x + this.width * this.scaleNumber,
-					"y" : this.upperLeft.y + this.height * this.scaleNumber
-			}*/
 			this.move();
 		},
 		moveByDragPosition: function(position) {
-			//console.log("position:", position);
 			this.adjustPosition(position);
 			this.move();
 		},
@@ -397,18 +391,11 @@
 			this.rotateGroup.setAttributeNS(null, "transform", "rotate(" + rotateAngle + ", " + rotatePoint.x +", " + rotatePoint.y +")");
 			this.rotatePoint = rotatePoint;
 			this.rotateAngle = rotateAngle;
-			//this.calRotatePoint();
 		},
 		scale: function(scaleNumber) {
 			var newNum = this.scaleNumber * scaleNumber;
 			this.objectGroup.setAttributeNS(null, "transform", "scale(" + newNum + ")");
 			this.scaleNumber = newNum;
-			/*this.lowerRight = {
-					"x" : this.upperLeft.x + this.width * newNum,
-					"y" : this.upperLeft.y + this.height * newNum
-			}
-			console.log("this.upperLeft", this.upperLeft, "this.lowerRight", this.lowerRight);
-			//this.gizmo.moveToShape();*/
 			this.adjustShape();
 		},
 		adjustShape: function() {
@@ -444,12 +431,8 @@
 				this.move();
 			}
 			if (remainY > 0) {
-				//canvas.scrollTop(scrollTop + remainY);
-				//var remanScrollTop = svgHeight - scrollTop - canvasHeight;
-				//if (remainY > remanScrollTop) {
 				this.upperLeft.y = this.upperLeft.y - remainY;
 				this.move();
-				//}
 			}
 			x = centerPoint.x - 50;
 			y = centerPoint.y - 50;
@@ -483,14 +466,9 @@
 				if (scaleNumber != 1) {
 					upperLeft = this.positionAfterRotateAndScale(upperLeft, rotateAngle, rotatePoint, scaleNumber);
 					lowerRight = this.positionAfterRotateAndScale(lowerRight, rotateAngle, rotatePoint, scaleNumber);
-					//console.log("upperLeft", upperLeft);
-					//console.log("lowerRight", lowerRight);
 				} else {
 					upperLeft = this.positionAfterRotate(upperLeft, rotateAngle, rotatePoint);
 					lowerRight = this.positionAfterRotate(lowerRight, rotateAngle, rotatePoint);
-					//console.log("this.upperLeft", this.upperLeft);
-					//console.log("upperLeft", upperLeft);
-					//console.log("lowerRight", lowerRight);
 				}
 			}
 			
@@ -552,14 +530,10 @@
 		},
 		setPosition: function(position) {
 			this.upperLeft = position; 
-			/*
-			this.lowerRight = {
-					"x" : position.x + this.width,
-					"y" : position.y + this.height
-			}*/
 		},
 		getConfig: function(){
 			var config = this.shapeConfig;
+			config.rootEle = $(config.rootEle).clone()[0];
 			config.scale = this.scaleNumber;
 			config.angle = this.rotateAngle;
 			return config;
@@ -572,42 +546,39 @@
 			"\"angle\": " + this.rotateAngle + "," +
 			"\"scale\": " + this.scaleNumber +
 			"}"
-		},
-		//To avoid weried behavior of those gradient shapes on Chrome browser.
-		refresh: function() {
 		}
-		/*
-		move: function(event) {
-			event = event || window.event;
-			this.adjustPosition({"x" : event.clientX, "y" : event.clientY+50});
-			this.moveToCurrentPositon();
-		},*/
-	})
+	});
 	
-	function Gizmo() {
-		this.node;
-		this.containerNode;
-		this.btnGroup;
-		this.btns = {};
-		this.shape;
-		this.canvas;
-		this.upperLeft = {"x" : 0, "y" : 0};
-		this.width;
-		this.height;
-		this.clazz = "gizmo";
-		this.mousePressed = false;
-		this.scaleNode;
-		this.scaleNumber = 1;
-		this.rotateGroup;
-		this.scaleGroup;
-	}
-	$.extend(Gizmo.prototype, {
+	$.widget("editor.gizmo", {
+		options: {
+			"config": null
+		},
+		_create: function() {
+			this.node;
+			this.containerNode;
+			this.btnGroup;
+			this.btns = {};
+			this.shape;
+			this.canvas;
+			this.upperLeft = {"x" : 0, "y" : 0};
+			this.width;
+			this.height;
+			this.clazz = "gizmo";
+			this.mousePressed = false;
+			this.scaleNode;
+			this.scaleNumber = 1;
+			this.rotateGroup;
+			this.scaleGroup;
+			this.init(this.options.canvas);
+
+		},
 		init: function(canvas){
 			var gizmo = this;
-			this.canvas = canvas;
-			var svgWrapper = canvas.svgWrapper;
-			var btnConfigs = canvas.gizmoSVGs.btns;
-			var containerNodeConfig = canvas.gizmoSVGs.containerNode;
+			var config = this.options.config;
+			this.canvas = this.element.data("canvas");
+			var svgWrapper = $("#canvas").svg("get");
+			var btnConfigs = config.btns;
+			var containerNodeConfig = config.containerNode;
 			var containerNode = new GizmoButton(containerNodeConfig.svgDoc, containerNodeConfig.info);
 			this.width = containerNode.width;
 			this.height = containerNode.height;
@@ -634,9 +605,42 @@
 			
 			this.containerNode = containerNode;
 			this.btns = btns;
-			this.node = gizmoNode;
+			
+			this.addEvents(btns);
 
 			$(this.node).bind("mouseleave", this.mouseLeave.bind(this));
+		},
+		addEvents: function(btns) {
+			var node;
+			$.each(btns, function(key, gizmoButton) {
+				node = gizmoButton.node;
+				if (this.name == 'move') {
+					$(node).shapeDrag({button: gizmoButton});
+				}
+				else if (this.name == 'rotate') {
+					$(node).shapeRotate({button: gizmoButton});
+				}
+				else if (this.name == 'scale') {
+					var cPos = gizmoButton.cPos;
+					var scaleReferPosition = {
+							x: cPos.x - gizmoButton.width/2,
+							y: cPos.y - gizmoButton.height/2
+					}
+					$(node).shapeScale({scaleReferPosition: scaleReferPosition});
+				}
+				else if (this.name == 'del') {
+					$(node).shapeDelete({button: gizmoButton});
+				}
+				else if (this.name == 'copy') {
+					$(node).shapeCopy({button: gizmoButton});
+				}
+				else if (this.name == 'forward') {
+					$(node).shapeForward({button: gizmoButton});
+				}
+				else if (this.name == 'backward') {
+					$(node).shapeBackward({button: gizmoButton});
+				}
+			})
 		},
 		mouseLeave: function() {
 			if (!this.mousePressed) {
@@ -675,9 +679,8 @@
 				gizmoBtn.setOpacity("1.0");
 				gizmoBtn.mousePressed = false;
 			})
-			this.mousePressed = false;
 		}
-	})
+	});
 	
 	function GizmoButton(svgDoc, group) {
 		
@@ -699,14 +702,10 @@
 			this.cPos.x = parseInt(xy[1]);
 			this.cPos.y = parseInt(xy[2]);
 		}
-		this.mousePressed = false;
-		this.mousePressedPosition;
-		this.rotateCanvasPosition;
-		this.mouseOriginAngle = 0;
 	}
 	$.extend(GizmoButton.prototype, {
 		init: function(gizmo) {
-			var svgWrapper = gizmo.canvas.svgWrapper;
+			var svgWrapper = $("#canvas").svg("get");//gizmo.canvas.svgWrapper;
 			var parentGroup = gizmo.btnGroup;
 			if (/GizmoContainer/.test(this.name)) {
 				parentGroup = gizmo.scaleGroup;
@@ -717,15 +716,6 @@
 				var scale = svgWrapper.group(btnNode);
 				svgWrapper.configure(scale, {"class": "scaleGroup"});
 				svgWrapper.add(scale, this.svgDoc.getElementsByTagName("g")[0]);
-				var shape = gizmo.shape;
-				//var shapeCenter = shape.center();
-				var cPos = this.cPos;
-				var x = cPos.x - this.width/2;
-				var y = cPos.y - this.height/2;
-				this.scaleReferPosition = {
-						x: x,
-						y: y
-				}
 				gizmo.scaleNode = scale;
 			} else {
 				svgWrapper.add(btnNode, this.svgDoc.getElementsByTagName("g")[0]);
@@ -739,444 +729,9 @@
 			
 			this.node = btnNode;
 			this.gizmo = gizmo;
-			
-			this.addEvents(svgWrapper);
-		},
-		addEvents: function(svgWrapper) {
-			var gizBtn = this;
-			//var node = this.gizmo.shape.node;
-			//$( node ).draggable();
-			$(this.node).bind("mousedown", this.mouseDown.bind(gizBtn));
-			$(this.node).bind("mouseup", this.mouseUp.bind(gizBtn));
-			$(this.node).bind("mouseleave", this.mouseLeave.bind(gizBtn));
-			if (this.name == 'move') {
-				$(this.node).bind("mousemove", this.mouseDrag.bind(gizBtn));
-			}
-			if (this.name == 'rotate') {
-				$(this.node).bind("mousemove", this.mouseRotate.bind(gizBtn));
-			}
-			if (this.name == 'scale') {
-				$(this.node).bind("mousemove", this.mouseScale.bind(gizBtn));
-			}
-			if (this.name == 'del') {
-				$(this.node).bind("click", this.remove.bind(gizBtn));
-			}
-			if (this.name == 'copy') {
-				$(this.node).bind("click", this.copy.bind(gizBtn));
-			}
-			if (this.name == 'forward') {
-				$(this.node).bind("click", this.forward.bind(gizBtn));
-			}
-			if (this.name == 'backward') {
-				$(this.node).bind("click", this.backward.bind(gizBtn));
-			}
-			$(this.node).bind("mouseout", this.mouseLeave.bind(gizBtn));
-			//this.node.addEventListener("mousemove", this.mouseMove.bind(gizBtn), true);
-		},
-		forward: function() {
-			var shape = this.gizmo.shape;
-			var canvas = shape.canvas;
-			var shapes = canvas.shapes;
-			/*
-			var relatedShapes = [];
-			var shapeUpperLeft = shape.upperLeft;
-			var shapeLowerRight = shape.lowerRight;
-			$(shapes).each(function() {
-				var upperLeft = this.upperLeft;
-				var lowerRight = this.lowerRight;
-				if (shapeUpperLeft.x < lowerRight.x && shapeUpperLeft.y < lowerRight.y) {
-					if (shapeLowerRight.x > upperLeft.x && shapeLowerRight.y > upperLeft.y) {
-						relatedShapes.push(this);
-					}
-				}
-			})
-			console.log("shape", shape.upperLeft, shape.lowerRight, relatedShapes);
-			*/
-			shapes.splice($.inArray(shape, shapes), 1);
-			shapes.push(shape);
-			//$(shape.node).remove();
-			$("#canvas svg").append(shape.node);
-			shape.gizmo.forward();
-			console.log(shapes);
-		},
-		backward: function() {
-			var shape = this.gizmo.shape;
-			var shapes = shape.canvas.shapes;
-			var shapeIndex = $.inArray(shape, shapes);
-			for (var i=shapeIndex; i > 0; i--) {
-				shapes[i] = shapes[i-1];
-			}
-			shapes[0] = shape;
-			$("#canvas svg").prepend(shape.node);
-			console.log(shapes);
-		},
-		remove: function() {
-			var shape = this.gizmo.shape;
-			var shapeRootNode = shape.node;
-			var shapes = shape.canvas.shapes;
-			$(shapeRootNode).remove();
-			shapes.splice($.inArray(shape, shapes), 1);
-			this.gizmo.hide();
-			console.log(shapes);
-		},
-		copy: function() {
-			var shape = this.gizmo.shape;
-			var shapeConfig = shape.getConfig();
-			var canvas = shape.canvas;
-			var newShape = canvas.addShape(shapeConfig);
-			var upperLeftPosition = shape.upperLeft;
-			newShape.setPosition({
-				x: upperLeftPosition.x,
-				y: upperLeftPosition.y + 50
-			});
-			newShape.move();
-		},
-		mouseDown: function(event) {
-			var gizBtn = this;
-			var gizmo = this.gizmo;
-			var btns = gizmo.btns;
-			var currentBehavior = this.name;
-			event = event || window.event;
-			this.mousePressed = true;
-			gizmo.mousePressed = true;
-			this.mousePressedPosition = {
-					"x": event.clientX,
-					"y": event.clientY
-			}
-			if (currentBehavior == 'move') {
-				$("#canvas").bind("mousemove", this.mouseDrag.bind(gizBtn));
-			}
-			if (currentBehavior == 'rotate') {
-				var shape = gizmo.shape;
-				this.rotateCanvasPosition = shape.center();
-				$("#canvas").bind("mousemove", this.mouseRotate.bind(gizBtn));
-			}
-			if (currentBehavior == 'scale') {
-				var shape = gizmo.shape;
-				var shapeCenter = shape.center();
-				var rotateAngle = shape.rotateAngle;
-				var angle = Math.PI * rotateAngle / 180;
-				var scaleReferPosition = this.scaleReferPosition;
-				var x = scaleReferPosition.x;
-				var y = scaleReferPosition.y;
-				//new coordinate after rotate
-				var newX = y * Math.sin(angle) + x * Math.cos(angle);
-				var newY = y * Math.cos(angle) - x * Math.sin(angle);
-				this.scaleReferCanvasPosition = {
-						"x": shapeCenter.x + newX,
-						"y": shapeCenter.y - newY
-				}
-				console.log(x, y, newX, newY, rotateAngle, "scaleReferPosition:", this.scaleReferPosition,"this.scaleReferCanvasPosition",this.scaleReferCanvasPosition);
-				this.scaleLastPosition = null;
-				$("#canvas").bind("mousemove", this.mouseScale.bind(gizBtn));
-			}
-			
-			$.each(btns, function(key, gizmoBtn) {
-				if(gizmoBtn.name != currentBehavior) {
-					gizmoBtn.setOpacity("0.6");
-				}
-			})
-			
-			gizmo.currentBehavior = currentBehavior;
-			$("#canvas").bind("mouseup", this.mouseUp.bind(gizBtn));
-			event.preventDefault();
-		},
-		mouseUp: function() {
-			var gizBtn = this;
-			var gizmo = this.gizmo;
-			gizmo.reset();
-			this.mousePressed = false;
-			if (this.name == 'move') {
-			}
-			if (this.name == 'rotate') {
-				this.mouseOriginAngle = null;
-			}
-			if (this.name == 'scale') {
-				/*var scaleNumber = this.scaleNumber;
-				
-				var shapeScaleGroup = this.gizmo.shape.objectGroup; 
-				shapeScaleGroup.setAttributeNS(null, "transform", "scale(" + scaleNumber + ")");
-				scaleNumber = 1;
-				this.scaleNode.setAttributeNS(null, "transform", "scale(" + scaleNumber + ")");
-				this.scaleNumber = scaleNumber;*/
-			}
-			
-			if (gizmo.currentBehavior == 'scale') {
-				var scaleNumber = gizmo.scaleNumber;
-				gizmo.shape.scale(scaleNumber);
-				scaleNumber = 1;
-				gizmo.scaleNode.setAttributeNS(null, "transform", "scale(" + scaleNumber + ")");
-				gizmo.scaleNumber = scaleNumber;
-				gizmo.moveToShape(gizmo.shape);
-			}
-
-			$("#canvas").unbind("mousemove");
-			$("#canvas").unbind("mouseup");
-		},
-		mouseLeave: function(event) {
-			event = event || window.event;
-			if (this.mousePressed && this.name == 'move') {
-				this.mouseDrag(event);
-				event.preventDefault();
-			}
-		},
-		mouseDrag: function(event) {
-			event = event || window.event;
-			var name = this.name;
-			var gizmo = this.gizmo;
-			var shape = gizmo.shape;
-			var x;
-			var y;
-			var mousePressedPosition;
-			if (this.mousePressed && this.name == 'move') {
-				mousePressedPosition = this.mousePressedPosition;
-				x = event.clientX - mousePressedPosition.x;
-				y = event.clientY - mousePressedPosition.y;
-				this.mousePressedPosition = {
-						"x": event.clientX,
-						"y": event.clientY
-				}
-				shape.moveByRelatviePosition({"x": x, "y": y});
-				gizmo.moveToShape(shape);
-				event.preventDefault();
-			}
-		},
-		mouseRotate: function(event) {
-			if (this.mousePressed) {
-				event = event || window.event;
-				var gizmo = this.gizmo;
-				var shape = gizmo.shape;
-				var btns = gizmo.btns;
-				var rotateCanPos = this.rotateCanvasPosition;
-				var mouseOriginalPos;
-				var mouseCurrentPos;
-				var mouseOriginAngle;
-				var mouseMoveAngle;
-				var mouseOriginAngle = this.mouseOriginAngle;
-				var mouseMoveAngle;
-				mouseOriginalPos = shape.getCanvasPosition(this.mousePressedPosition);
-				mouseCurrentPos = shape.getCanvasPosition({
-					"x": event.clientX,
-					"y": event.clientY
-				});
-				//console.log(rotateCanPos, mouseOriginalPos, mouseCurrentPos);
-				if (!mouseOriginAngle) {
-					mouseOriginAngle = 180 * Math.atan2(rotateCanPos.y - mouseOriginalPos.y, mouseOriginalPos.x - rotateCanPos.x) / Math.PI;;
-				}
-				mouseMoveAngle = 180 * Math.atan2(rotateCanPos.y - mouseCurrentPos.y, mouseCurrentPos.x - rotateCanPos.x) / Math.PI;
-				//console.log(mouseOriginAngle, mouseMoveAngle);
-				shape.rotate(mouseOriginAngle - mouseMoveAngle);
-				gizmo.rotateByShape(shape);
-				mouseOriginAngle = mouseMoveAngle;
-				this.mouseOriginAngle = mouseOriginAngle;
-				event.preventDefault();
-			}
-		},
-		mouseScale: function(event) {
-			if (!this.mousePressed) {
-				return;
-			}
-			event = event || window.event;
-			var gizmo = this.gizmo;
-			var shape = gizmo.shape;
-			var lastLen;
-			var curLen;
-			var scaleLastPosition;// = this.mousePressedPosition;
-			var currentMousePosition = shape.getCanvasPosition({
-					"x": event.clientX,
-					"y": event.clientY
-			})
-			var mousePressedPosition = shape.getCanvasPosition(this.mousePressedPosition);
-			var referPosition = this.scaleReferCanvasPosition;
-			
-			if (!this.scaleLastPosition) {
-				this.scaleLastPosition = mousePressedPosition;
-				return;
-			}
-			scaleLastPosition = this.scaleLastPosition;
-			
-			var lastLen = Math.sqrt(Math.pow(scaleLastPosition.y - referPosition.y, 2) +
-                                      Math.pow(scaleLastPosition.x - referPosition.x, 2));
-			
-            var curLen = Math.sqrt(Math.pow(currentMousePosition.y - referPosition.y, 2) +
-                                     Math.pow(currentMousePosition.x - referPosition.x, 2));
-            
-            this.scaleLastPosition = currentMousePosition;
-            if (!lastLen) {
-				return;
-			}
-            //console.log("referPosition.x",referPosition.x, "referPosition.y",referPosition.y, "scaleLastPosition.x", scaleLastPosition.x, "scaleLastPosition.y",scaleLastPosition.y,"currentMousePosition.x", currentMousePosition.x, "currentMousePosition.y", currentMousePosition.y);
-            //console.log("curLen is:",curLen, "lastLen is:", lastLen);
-            var scaleNumber = gizmo.scaleNumber * curLen/lastLen;
-            gizmo.scaleNode.setAttributeNS(null, "transform", "scale(" + scaleNumber + ")");
-            console.log(scaleNumber);
-            shape.objectGroup.setAttributeNS(null, "transform", "scale(" + shape.scaleNumber * scaleNumber  + ")");
-            gizmo.scaleNumber = scaleNumber;
-			event.preventDefault();
 		},
 		setOpacity: function(value) {
 			this.node.style.opacity = value; 
-		}
-		
-	})
-	
-	var svgDiagramContainer = new SVGDiagramEditorContainer();
-	
-	$.fn.SVGDiagram = function(options) {
-		var otherArgs = Array.prototype.slice.call(arguments, 1);
-		var method = arguments[0] || "";
-	    if ( svgDiagramContainer[method] ) {
-	      return svgDiagramContainer[method].apply( svgDiagramContainer, otherArgs);
-	    } else if ( typeof method === 'object' || !method ) {
-	      return svgDiagramContainer.init.apply( svgDiagramContainer, [this].concat(otherArgs));
-	    } else {
-	      $.error( 'Options ' +  options + ' does not exist on $.diagramEditor' );
-	    }
-	};
-	
-	function Tool() {
-		this.svgShapeTags = ["rect", "circle", "ellipse", "line", "polyline", "polygon", "path"];
-		this.gradientTags = ["linearGradient", "radialGradient"];
-	}
-	$.extend(Tool.prototype, {
-		genUUID: function() {
-		    // lower cased
-		    var res = [], hex = '0123456789abcdef';
-		    for (var i = 0; i < 36; i++) res[i] = Math.floor(Math.random()*0x10);
-		    res[14] = 4;
-		    res[19] = (res[19] & 0x3) | 0x8;
-		    for (var i = 0; i < 36; i++) res[i] = hex[res[i]];
-		    res[8] = res[13] = res[18] = res[23] = '-';
-		    return res.join('');
-		},
-		newSVGElement: function(origin) {
-			var newSVG = $(origin).clone()[0];
-			var shapeTags = this.svgShapeTags;
-			var nodes;
-			var nodeStyle;
-			var newId;
-			var oldId;
-			var result;
-			var palette = this;
-			var defsEle = newSVG.getElementsByTagName("defs");
-			$(shapeTags).each(function() {
-				nodes = newSVG.getElementsByTagName(this);
-				$(nodes).each(function() {
-					nodeStyle = this.getAttribute("style")
-					if (result = /fill:url\(#(.+)\)/.exec(nodeStyle)) {
-						oldId = result[1];
-						newId = tool.genUUID();
-						this.setAttributeNS(null, "style", nodeStyle.replace(/fill:url\(#.+\)/, "fill:url(#" + newId + ")"));
-						palette.setGradientNewId(oldId, newId, defsEle);
-					}
-				})
-			})
-			return newSVG;
-		},
-		setGradientNewId: function(oldId, newId, defsEle) {
-			var def;
-			var childNodes;
-			$(defsEle).each(function() {
-				def = this;
-				childNodes = def.childNodes;
-				$(childNodes).each(function() {
-					if (this.attributes && oldId === this.getAttribute("id")) {
-						this.setAttributeNS(null, "id", newId);
-					}
-				})
-			})
-		},
-		parseCSVFileToJSON: function(csvData) {
-			var startTime = new Date().getTime();
-			var csvJSON = {};
-			var row;
-			var objNames = [];
-			var rowResult;
-			var colResult;
-			var colInQuoteResult;
-			var col;
-			var nameRow;
-			var group;
-			var needSort = false;
-			
-			var rowPattern = /(.+?)(?=\r|\n|$)/g;
-			var colPatten = /(".+")\s*(?=,|\r|\n|$)|([^,]+)\s*(?=,|\r|\n|$)|(^,|,$)|(,,)/g;
-			var colInQuotesPattern = /"(.*?)"\s*(?=,|$)/g;
-			
-			rowResult = rowPattern.exec(csvData);
-			if(rowResult.length <1){
-				return;
-			}
-			
-			nameRow = rowResult[1];
-			if (/,order\s*(?=,|$)/.test(nameRow)) {
-				needSort = true;
-			}
-			while (colResult = colPatten.exec(nameRow)) {
-				//four groups.
-				//1. between double quotes. sample: ...,"11,22,333",... --> "11,22,333"
-				//2. plain column, between commas. sample: ...,2344,... --> 2344
-				//3. start with black value. sample: ,... --> ,
-				//4. column is black value. sample: ...,,... --> ,,
-				if (colResult[1]) {
-					col = colResult[1];
-					col = col.replace(/""/g, "#DQS#");
-					while (colInQuoteResult = colInQuotesPattern.exec(col)) {
-						objNames.push(colInQuoteResult[1].replace(/#DQS#/,"\""));
-					};
-				} else if (colResult[2]) {
-					objNames.push(colResult[2]);
-				} else if (colResult[3]) {
-					objNames.push("");
-				} else if (colResult[4]) {
-					objNames.push("");
-				}
-			}
-			
-			while (rowResult = rowPattern.exec(csvData))  {
-				row = {};
-				var i = 0;
-				while (colResult = colPatten.exec(rowResult[1])) {
-					var col;
-					//four groups.
-					//1. between double quotes. sample: ...,"11,22,333",... --> "11,22,333"
-					//2. plain column, between commas. sample: ...,2344,... --> 2344
-					//3. start with black value. sample: ,... --> ,
-					//4. column is black value. sample: ...,,... --> ,,
-					if (colResult[1]) {
-						col = colResult[1];
-						col = col.replace(/""/g, "#DQS#");
-						while (colInQuoteResult = colInQuotesPattern.exec(col)) {
-							row[objNames[i++]] = colInQuoteResult[1].replace(/#DQS#/g,"\"");
-						};
-					} else if (colResult[2]) {
-						row[objNames[i++]] = colResult[2];
-					} else if (colResult[3]) {
-						row[objNames[i++]] = "";
-					} else if (colResult[4]) {
-						row[objNames[i++]] = "";
-					}
-				}
-				group = row.group;
-				if (group) {
-					if (!csvJSON[group]) {
-						csvJSON[group] = [];
-					}
-					csvJSON[group].push(row);
-				}
-			}
-			
-			if (needSort) {
-				$.each(csvJSON, function(key, val) {
-					val.sort(function(obj1, obj2) {
-						return obj1.order - obj2.order;
-					});
-				})
-			}
-			
-			var endTime = new Date().getTime();
-			console.log("it takes:", (endTime - startTime), csvJSON);
-			return csvJSON;
 		}
 	})
 })(jQuery)
