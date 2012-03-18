@@ -1,0 +1,9 @@
+name,path,svg,tooltip,rowsNum,colsNum,order
+palette_1,config/palette_1.csv,svg/palette_1_display.svg,svg/palette_1_tooltip.svg,4,1,1
+palette_2,config/palette_2.csv,svg/palette_2_display.svg,svg/palette_2_tooltip.svg,5,1,2
+palette_3,config/palette_3.csv,svg/palette_3_display.svg,svg/palette_3_tooltip.svg,3,1,3
+palette_4,config/palette_4.csv,svg/palette_4_display.svg,svg/palette_4_tooltip.svg,3,1,4
+palette_5,config/palette_5.csv,svg/palette_5_display.svg,svg/palette_5_tooltip.svg,3,1,5
+palette_6,config/palette_6.csv,svg/palette_6_display.svg,svg/palette_6_tooltip.svg,3,1,6
+palette_7,config/palette_7.csv,svg/palette_7_display.svg,svg/palette_7_tooltip.svg,2,1,7
+palette_8,config/palette_8.csv,svg/palette_8_display.svg,svg/palette_8_tooltip.svg,6,1,8
