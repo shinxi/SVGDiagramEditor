@@ -21,8 +21,33 @@ $.widget("editor.utility", {
 	    res[8] = res[13] = res[18] = res[23] = '-';
 	    return res.join('');
 	},
+	adjustDomSize: function(domObj) {
+		var cssWidthArray = ["padding-left", "padding-right",
+		                     "margin-left", "margin-right",
+		                     "border-left-width", "border-right-width"];
+		var cssHeightArray = ["padding-top", "padding-bottom",
+		                      "margin-top", "margin-bottom",
+		                      "border-top-width", "border-bottom-width"];
+		var len;
+		var widthToRemove = 0;
+		var heightToRemove = 0;
+		
+		$.each(cssWidthArray, function(i, style) {
+			len = parseInt(domObj.css(style));
+			if (len) {
+				widthToRemove += len;
+			}
+		})
+		$.each(cssHeightArray, function(i, style) {
+			len = parseInt(domObj.css(style));
+			if (len) {
+				heightToRemove += len;
+			}
+		})
+		domObj.width(domObj.width() - widthToRemove).height(domObj.height() - heightToRemove);
+	},
 	//This function is used to clone an new svg element with different gradient id. That's for fixing wired Chrome gradient behavior.
-	newSVGElement: function(origin) {
+	newSVGElement: function(origin, container) {
 		var newSVG = $(origin).clone()[0];
 		var shapeTags = this.svgShapeTags;
 		var nodes;
@@ -44,6 +69,27 @@ $.widget("editor.utility", {
 				}
 			})
 		})
+		if (container) {
+			var svgWidth = $(newSVG).width() || $(newSVG).attr("width");
+			var svgHeight = $(newSVG).height() || $(newSVG).attr("height");
+			var containerWidth = container.width();
+			var containerHeight = container.height();
+			var scaleNum;
+			if (svgWidth / svgHeight < containerWidth / containerHeight) {
+				scaleNum = containerHeight / svgHeight;
+				svgWidth = containerHeight * svgWidth / svgHeight;
+				svgHeight = containerHeight;
+			} else {
+				scaleNum = containerWidth / svgWidth;
+				svgHeight = containerWidth * svgHeight / svgWidth;
+				svgWidth = containerWidth;
+			}
+			var gElement = document.createElementNS("http://www.w3.org/2000/svg", "g");
+			gElement.setAttributeNS(null, "transform", "scale(" + scaleNum + ")");
+			var newSVGFirstG = newSVG.getElementsByTagName("g")[0];
+			$(newSVGFirstG).wrap(gElement);
+			$(newSVG).width(svgWidth).attr("width", svgWidth).height(svgHeight).attr("height", svgHeight);
+		}
 		return newSVG;
 	},
 	setGradientNewId: function(oldId, newId, defsEle) {
@@ -131,7 +177,7 @@ $.widget("editor.utility", {
 					row[objNames[i++]] = "";
 				}
 			}
-			group = row.group;
+			group = row.group || "rows";
 			if (group) {
 				if (!csvJSON[group]) {
 					csvJSON[group] = [];

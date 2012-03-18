@@ -49,12 +49,14 @@
 			var self = this;
 			var btns = this.gizmo.btns;
 			var name = this.options.name;
-			this._mouseStarted = (this._mouseStart(event) !== false);
-			this.gizmo.mousePressed = this._mouseStarted;
+			
 			this.mousePressedPosition = {
 					"x": event.clientX,
 					"y": event.clientY
 			}
+			
+			this._mouseStarted = (this._mouseStart(event) !== false);
+			this.gizmo.mousePressed = this._mouseStarted;
 
 			$.each(btns, function(key, gizmoBtn) {
 				if(gizmoBtn.name != name) {
@@ -330,8 +332,7 @@
 	
 	$.widget("editor.shapeScale", $.editor.editorMouse, {
 		options: {
-			"name": "scale",
-			"scaleReferPosition": null
+			"name": "scale"
 		},
 		_create: function() {
 			//_mouseInit method is in mouse.js
@@ -349,18 +350,19 @@
 			var shapeCenter = shape.center();
 			var rotateAngle = shape.rotateAngle;
 			var angle = Math.PI * rotateAngle / 180;
-			var scaleReferPosition = this.options.scaleReferPosition;
-			var x = scaleReferPosition.x;
-			var y = scaleReferPosition.y;
-			//new coordinate after rotate
-			var newX = y * Math.sin(angle) + x * Math.cos(angle);
-			var newY = y * Math.cos(angle) - x * Math.sin(angle);
-			this.scaleReferPosition = {
-					"x": shapeCenter.x + newX,
-					"y": shapeCenter.y - newY
-			}
+			var scaleReferPosition = shape.getCanvasPosition(this.mousePressedPosition);
+			this.scaleReferPosition = scaleReferPosition;
 			this.scaleLastPosition = null;
 			return true;
+		},
+		
+		testCircle: function(pos, color) {
+			var circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+			circle.setAttributeNS(null, "cx", pos.x);
+			circle.setAttributeNS(null, "cy", pos.y);
+			circle.setAttributeNS(null, "r", 2);
+			circle.setAttributeNS(null, "fill", color);
+			$("#canvas svg").append(circle);
 		},
 
 		_mouseDrag: function(event, noPropagation) {
@@ -368,35 +370,27 @@
 			var shape = gizmo.shape;
 			var lastLen;
 			var curLen;
-			var scaleLastPosition;// = this.mousePressedPosition;
+			var scaleRelativePosition;
 			var currentMousePosition = shape.getCanvasPosition({
 					"x": event.clientX,
 					"y": event.clientY
 			})
-			var mousePressedPosition = shape.getCanvasPosition(this.mousePressedPosition);
+			
 			var referPosition = this.scaleReferPosition;
 			
-			if (!this.scaleLastPosition) {
-				this.scaleLastPosition = mousePressedPosition;
-				return;
-			}
-			scaleLastPosition = this.scaleLastPosition;
+			var rotateAngle = shape.rotateAngle;
+			var angle = Math.PI * rotateAngle / 180;
 			
-			var lastLen = Math.sqrt(Math.pow(scaleLastPosition.y - referPosition.y, 2) +
-                                      Math.pow(scaleLastPosition.x - referPosition.x, 2));
+			//var newX = (currentMousePosition.y - referPosition.y) * Math.sin(angle) + (currentMousePosition.x - referPosition.x) * Math.cos(angle);
+			var newY = (currentMousePosition.x - referPosition.x) * Math.sin(angle) - (currentMousePosition.y - referPosition.y) * Math.cos(angle);
 			
-            var curLen = Math.sqrt(Math.pow(currentMousePosition.y - referPosition.y, 2) +
-                                     Math.pow(currentMousePosition.x - referPosition.x, 2));
-            
-            this.scaleLastPosition = currentMousePosition;
-            if (!lastLen) {
-				return;
+			var scaleNumber;
+			curLen = Math.abs(newY);
+			if (newY < 0) {
+				scaleNumber = 50 / (50 + curLen)
+			} else {
+				scaleNumber = (curLen + 50) / 50;
 			}
-            //console.log("referPosition.x",referPosition.x, "referPosition.y",referPosition.y, "scaleLastPosition.x", scaleLastPosition.x, "scaleLastPosition.y",scaleLastPosition.y,"currentMousePosition.x", currentMousePosition.x, "currentMousePosition.y", currentMousePosition.y);
-            //console.log("curLen is:",curLen, "lastLen is:", lastLen);
-            var scaleNumber = gizmo.scaleNumber * curLen/lastLen;
-            gizmo.scaleNode.setAttributeNS(null, "transform", "scale(" + scaleNumber + ")");
-            //console.log(scaleNumber);
             shape.objectGroup.setAttributeNS(null, "transform", "scale(" + shape.scaleNumber * scaleNumber  + ")");
             gizmo.scaleNumber = scaleNumber;
 			event.preventDefault();

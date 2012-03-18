@@ -34,34 +34,125 @@
 	$.widget("editor.SVGDiagram", {
 		options: {
 			id: "diagramEditor",
-			html: "<div><div id='palette'><div class='palette-title'><span>PALETTE</span></div><div class='palette-groups'></div></div><div id='canvas'></div></div>",
-			configPath : "svg/svgConfig.csv"
+			layoutHTML: "<div><div id='palette'><div class='palette-title'><span>PALETTE</span></div><div class='palette-groups'></div></div><div id='canvas'></div></div>",
+			layout: {
+				html: "<div>" +
+						"<div class='diagram-left'>" +
+						"<div class='palette-toolbar'></div>" +
+						"<div id='palette'>" +
+						"<div class='palette-title'><span>PALETTE</span></div><div class='palette-groups'></div>" +
+						"<div class='control-buttons'></div>" +
+						"</div>" +
+						"</div>" +
+						"<div id='canvas'></div>" +
+					"</div>",
+				ratio: {
+					"diagram": [5, 3],
+					"diagram-left": [1, 3],
+					"palette-toolbar": [1, 1],
+					"palette": [1, 2],
+					"canvas": [4, 3]
+				}
+			},
+			controlHTML: "",
+			configPath : "config/config.csv"
 		},
 		_create: function() {
+			//Cache svgs of palette.
+			this.palettes = {};
+			//Default gizmo config path
+			this.gizmoPath;
 			this.init();
 		},
 		init: function(container) {
 			var options = this.options;
+			var element = this.element;
+			var diagram = this;
 			this.id = options.id;
-			this.element.append($(options.html).attr("id", this.id));
+			
+			element.append($(options.layout.html).attr("id", this.id));
+			
+			$(".control-buttons").append(options.controlHTML);
+			
+			//create utility widget on $("#diagramEditor")
+			element.find("#" + this.id).utility();
+			
+			this.resetDiagramSize();
+			
 			//create palette widget
-			$("#canvas").palette({container: this});
+			element.find("#palette").palette({container: this});
 			//create canvas widget
-			$("#canvas").canvas({container: this});
-			//create utility widget on $("#canvas")
-			$("#canvas").utility();
+			element.find("#canvas").canvas({container: this});
+			
+			element.hide();
+			
 			$.get(options.configPath, function(csvData){
-				var svgData = $("#canvas").utility("parseCSVFileToJSON", csvData);
-				$("#canvas").palette("initPalette", svgData.palette);
-				//self.canvas.initCanvasGizmo(self.svgData.gizmo);
-				$("#canvas").canvas("initCanvasGizmo", svgData.gizmo);
+				var result = $("#diagramEditor").utility("parseCSVFileToJSON", csvData);
+				if (result.rows && result.rows.length > 0) {
+					diagram.loadPaletteToolBar(result.rows[0]);
+					diagram.gizmoPath = result.rows[0].gizmoPath;
+				}
 			});
+			element.show();
+		},
+		loadPaletteToolBar: function(config) {
+			this.element.find(".palette-toolbar").paletteToolbar(config);
+		},
+		resetDiagramSize: function() {
+			var options = this.options;
+			var element = this.element;
+			var diagramObj = $("#" + options.id);
+			var ratioConfig = options.layout.ratio;
+			//console.log($(element).width(), $(element).height());
+			var diagramWidth = $(element).width() || $(window).width();
+			var diagramHeight = $(element).height() || $(window).height();
+			var diagramRatio = ratioConfig["diagram"];
+			var canvasRatio = ratioConfig["canvas"];
+			var diagramLeftRatio = ratioConfig["diagram-left"];
+			var paletteToolRatio = ratioConfig["palette-toolbar"];
+			var utility = $("#diagramEditor").data("utility");
+			if ((diagramRatio[0] / diagramRatio[1]) < (diagramWidth / diagramHeight)) {
+				diagramWidth = diagramHeight * diagramRatio[0] / diagramRatio[1];
+			} else {
+				diagramHeight = diagramWidth * diagramRatio[1] / diagramRatio[0];
+			}
+			diagramObj.width(diagramWidth).height(diagramHeight - diagramObj.offset().top);
+			utility.adjustDomSize(diagramObj);
+			var canvasObj = diagramObj.find("#canvas");
+			this.setDomSizeByRatio(canvasObj, canvasRatio, diagramObj, diagramRatio);
+			utility.adjustDomSize(canvasObj);
+			var diagramLeftObj = diagramObj.find(".diagram-left");
+			diagramLeftObj.width(diagramObj.width() - canvasObj.outerWidth()).height(diagramObj.height());
+			utility.adjustDomSize(diagramLeftObj);
+			var paletteToolObj = diagramObj.find(".palette-toolbar");
+			this.setDomSizeByRatio(paletteToolObj, paletteToolRatio, diagramObj, diagramRatio);
+			utility.adjustDomSize(paletteToolObj);
+			var paletteObj = diagramObj.find("#palette");
+			paletteObj.width(diagramLeftObj.width()).height(diagramLeftObj.height()  - paletteToolObj.outerHeight());
+			utility.adjustDomSize(paletteObj);
+			
+		},
+		setDomSizeByRatio: function(domObj, ratioArray, relatedObj, relatedRatioArray) {
+			domObj.width(ratioArray[0] / relatedRatioArray[0] * relatedObj.width()).height(ratioArray[1] / relatedRatioArray[1] * relatedObj.height());
 		},
 		load: function(diagramId) {
 			var self = this;
+			
+			$.get(this.gizmoPath, function(csvData){
+				var result = $("#diagramEditor").utility("parseCSVFileToJSON", csvData);
+				$("#canvas").canvas("initCanvasGizmo", result.gizmo);
+			});
+			
 			$.getJSON("test/loadJSON.json", function(response) {
 				$("#canvas").canvas("load", response);
 			})
+		},
+		resize: function() {
+			this.element.width($(window).width()).height($(window).height());
+			this.resetDiagramSize();
+			this.element.find(".palette-toolbar").paletteToolbar("genPaletteToolbar");
+			this.element.find("#palette").palette("genPalette");
+			this.element.find("#canvas").canvas("resize");
 		},
 		save: function() {
 			/*format:
@@ -85,6 +176,122 @@
 		}
 	});
 	
+	$.widget("editor.paletteToolbar", {
+		options: {
+			"rowsNum": 1,
+			"colsNum": 1,
+			"path": ""
+		},
+		_create: function() {
+			var options = this.options;
+			this.svgDocs = [];
+			var paletteToolbar = this;
+			$(document.body).buttonTooltip();
+			$.get(options.path, function(data) {
+				var result = $("#diagramEditor").utility("parseCSVFileToJSON", data);
+				if (result.rows && result.rows.length > 0) {
+					paletteToolbar.retrieveSVGDocuments(result.rows);
+				}
+			})
+		},
+		retrieveSVGDocuments: function(palettes) {
+			var svgDocs = this.svgDocs;
+			$.each(palettes, function(i, obj){
+   	        	$.ajax({
+       			   	type: "GET",
+       				async: false,
+       			   	url: obj.svg,
+       			   	dataType: "xml",
+       			   	success: function(xml) {
+       			   		obj.dom = xml.documentElement;
+       			   		obj.id = obj.name;
+       			   		svgDocs.push(obj);
+       			   	}
+       			});
+			})
+			this.genPaletteToolbar();
+		},
+		genPaletteToolbar: function() {
+			var element = this.element;
+			var options = this.options;
+			var svgDocs = this.svgDocs;
+			var toolbarWidth = element.width();
+			var toolbarHeight = element.height();
+			var rowsNum = options.rowsNum;
+			var colsNum = options.colsNum;
+			var total = rowsNum * colsNum;
+			var buttonDivSize = [toolbarWidth / colsNum, toolbarHeight / rowsNum];
+			var utility = $("#diagramEditor").data("utility");
+			var paletteToolbar = this;
+			element.empty();
+			$.each(svgDocs, function(i, obj){
+				if (i >= total) {
+					return false;
+				}
+				
+				var svgElement;
+				var buttonDiv = $("<div class='palette-toolbar-button' name='" + obj.id + "'></div>");
+				var left = i % colsNum * buttonDivSize[0];
+				var top = parseInt(i / colsNum) * buttonDivSize[1];
+				
+				element.append(buttonDiv);
+				buttonDiv.width(buttonDivSize[0]).height(buttonDivSize[1]).css({left: left, top: top});
+   	        	utility.adjustDomSize(buttonDiv);
+   	        	svgElement = utility.newSVGElement(obj.dom, buttonDiv);
+		   		buttonDiv.append(svgElement);
+		   		$(svgElement).bind("mouseenter", function(event){
+		   			$(document.body).buttonTooltip("show", event, obj.tooltip);
+		   		})
+		   		$(svgElement).bind("mouseleave", function(event){
+		   			$(document.body).buttonTooltip("hide");
+		   		})
+		   		$(svgElement).bind("click", function(event){
+		   			paletteToolbar.loadSVGs(obj);
+		   		})
+			})
+		},
+		loadSVGs: function(config) {
+			$.get(config.path, function(csvData){
+				var result = $("#diagramEditor").utility("parseCSVFileToJSON", csvData);
+				$("#palette").palette("initPalette", config, result.palette);
+				$("#canvas").canvas("initCanvasGizmo", result.gizmo);
+			});
+		}
+	});
+	
+	$.widget("editor.buttonTooltip", {
+		options: {
+			"layout": "<div id='palette-toolbar-button-tooltip'><input type='image' class='palette-toolbar-button-tooltip-image'></div>"
+		},
+		_create: function() {
+			this.element.append(this.options.layout);
+			/*$(document).bind("mousemove", function(e){
+				var target = e.currentTarget;
+				if (target && !$(target).hasClass("palette-toolbar-button") && $("#palette-toolbar-button-tooltip:visible").size() > 0) {
+					$("#palette-toolbar-button-tooltip:visible").hide();
+				}
+			})*/
+		},
+		show: function(event, path) {
+			this.isVisible = true;
+			var self = this;
+			var tooltipObj = $("#palette-toolbar-button-tooltip");
+			var target = $(event.currentTarget);
+			var left = target.offset().left;// + (target.width() || target.attr("width")) / 2;
+			var top = target.offset().top + target.height() || target.attr("height");;
+			tooltipObj.find(".palette-toolbar-button-tooltip-image").attr("src", path);
+			tooltipObj.css({left: left, top: top}).fadeIn(300, function() {
+				if (!self.isVisible) {
+					window.setTimeout(function() {self.hide();}, 1000)
+				}
+			});
+		},
+		hide: function() {
+			this.isVisible = false;
+			$("#palette-toolbar-button-tooltip").hide();
+		}
+	});
+	
 	$.widget("editor.palette", {
 		options: {
 			"container": null
@@ -93,32 +300,113 @@
 			this.container = this.options.container;
 			this.shapeStencils = {};
 		},
-		initPalette: function(paletteJSON) {
-			var width = 0;
-			var height = 0;
-			var shapeStencils = this.shapeStencils;
+		calGroupSize: function(rowsNum, colsNum) {
+			var element = this.element;
+			var groupsObj = element.find(".palette-groups");
+			groupsObj.width(element.width()).height(element.height() - element.find(".palette-title").outerHeight() - element.find(".control-buttons").outerHeight());
+			$("#diagramEditor").utility("adjustDomSize", groupsObj);
+			return [groupsObj.width() / colsNum, groupsObj.height() / rowsNum];
+		},
+		getGroupFeed: function(groupName, path) {
+			var config = this.shapeStencils[groupName];
+			if (!config) {
+				config = this.loadShapeStencil(groupName, path);
+			}
+			var svgDocument = $("#diagramEditor").utility("newSVGElement", config["origin"])
+			var svgRootElement = svgDocument.getElementsByTagName("g")[0];
+			var defsElement = svgDocument.getElementsByTagName("defs")[0];
+			return {
+				rootEle: svgRootElement,
+				defsEle: defsElement,
+				width: config.width,
+				height: config.height,
+				name: groupName,
+				path: config.path
+			};
+		},
+		loadShapeStencil: function(name, path) {
+			var stencil;
+			$.ajax({
+   			   	type: "GET",
+   				async: false,
+   			   	url: path,
+   			   	dataType: "xml",
+   			   	success: function(xml){
+       	        	var svgElement = xml.documentElement;
+       	        	stencil = {
+   	        			"name": name,
+   	        			"origin": svgElement,
+   	        			"new": null,
+   	        			"path": path,
+   	        			"width": parseInt($(svgElement).width() || $(svgElement).attr("width")),
+   	        			"height": parseInt($(svgElement).height() || $(svgElement).attr("height"))
+       	        	}
+   			   	}
+   			});
+			return stencil;
+		},
+		clearGroups: function() {
+			$(".palette-groups").empty();
+		},
+		initPalette: function(config, paletteJSON) {
+			this.config = config;
 			var palette = this;
-			$(paletteJSON).each(function() {
-        		var group = this;
-       		 	$.ajax({
-       			   	type: "GET",
-       				async: false,
-       			   	url: group.path,
-       			   	dataType: "xml",
-       			   	success: function(xml){
-	       			   	var groupName = group.name;
-	       	        	var svgElement = xml.documentElement;
-	       	        	var groupDiv = "<div id='" + groupName + "'name='" + groupName + "' class='palette-group'></div>";
-	       	        	$(".palette-groups").append(groupDiv);
-	       	        	$(".palette-group:last").append(svgElement);
-	       	        	shapeStencils[groupName] = {
-	       	        			"origin": svgElement,
-	       	        			"new": $("#canvas").utility("newSVGElement", svgElement)
-	       	        	}
-       			   	}
-       			});
-       			
+			var shapeStencils = this.options.container.palettes[config.path];
+			if (!shapeStencils) {
+				shapeStencils = {};
+				$(paletteJSON).each(function() {
+	        		var group = this;
+	       		 	var stencil = palette.loadShapeStencil(group.name, group.path);
+	       		 	shapeStencils[stencil.name] = stencil;
+	        	})
+	        	this.options.container.palettes[config.path] = shapeStencils;
+			}
+			
+			this.shapeStencils = shapeStencils;
+			
+			this.genPalette();
+        	
+        	//$("#" + this.container.id).height($(".palette-groups").height() + $(".palette-title").height());
+		},
+		genPalette: function() {
+			var config = this.config;
+			
+			if (!config) {
+				return;
+			}
+			
+			var rowsNum = config.rowsNum;
+			var colsNum = config.colsNum;
+			var total = rowsNum * colsNum;
+			var groupSize = this.calGroupSize(rowsNum, colsNum);
+			var shapeStencils = this.shapeStencils;
+			var utility = $("#diagramEditor").data("utility");
+			var count = 0;
+			
+			this.clearGroups();
+			
+        	$.each(shapeStencils, function(groupName, obj) {
+        		if (count >= total) {
+					return false;
+				}
+        		
+   	        	var groupDiv = $("<div id='" + groupName + "'name='" + groupName + "' class='palette-group'></div>");
+   	        	var left = count % colsNum * groupSize[0];
+				var top = parseInt(count / colsNum) * groupSize[1];
+   	        	/*
+   	        	if (element.find(".palette-group").size() == total - 1) {
+   	        		groupHeight = element.find(".palette-groups").height() - element.find(".palette-group").outerHeight() * (total - 1);
+   	        	}*/
+   	        	$(".palette-groups").append(groupDiv);
+   	        	
+   	        	groupDiv.width(groupSize[0]).height(groupSize[1]).css({left: left, top: top});
+   	        	utility.adjustDomSize(groupDiv);
+   	        	var svgElement = utility.newSVGElement(obj.origin, groupDiv);
+   	        	shapeStencils[groupName]["new"] = utility.newSVGElement(svgElement);
+   	        	$(".palette-group:last").append(svgElement);
+   	        	count ++;
         	})
+        	
         	$(".palette-group svg").draggable({
         		cursor: 'pointer', 
         		helper: function(){
@@ -127,7 +415,6 @@
         			return svgDiv;
         		}
         	})
-        	$("#" + this.container.id).height($(".palette-groups").height() + $(".palette-title").height());
 		}
 	});
 	
@@ -153,6 +440,11 @@
 			this.init();
 
 		},
+		resize: function() {
+			var element = this.element;
+			var svgWrapper = this.svgWrapper;
+			//svgWrapper.configure(svgWrapper.root(), {width: element.width(), height: element.height()});
+		},
 		init: function() {
 			var svgWrapper;
 			var svgRoot;
@@ -160,37 +452,20 @@
 			var canvas = this;
 			var container = this.options.container;
 			this.container = container;
-			this.id = $("#canvas").utility("genUUID");
-			$("#" + container.id).append(settings.html);
+			this.id = $("#diagramEditor").utility("genUUID");
+			//$("#" + container.id).append(settings.html);
 			$("#" + settings.id).svg();
 			svgWrapper = $("#" + settings.id).svg("get");
-			svgRoot = svgWrapper.root();
-			svgWrapper.configure(svgRoot, {width: settings.width, height: settings.height});
+			//svgRoot = svgWrapper.root();
+			//svgWrapper.configure(svgRoot, {width: settings.width, height: settings.height});
 			
 			$("#"+settings.id).droppable({
 				tolerance: "fit",
 				drop: function( event, ui ) {
 					var shapeName = ui.helper.attr("name");
-					var svgDocument = $("#canvas").utility("newSVGElement", ui.helper.find("svg")[0]);
-					var shapeConfig;
-					var svgRootElement;
-					var width;
-					var height;
-					var shape;
-					var defsElement;
-					svgRootElement = svgDocument.getElementsByTagName("g")[0];
-					defsElement = svgDocument.getElementsByTagName("defs")[0];
-					width = parseInt($(svgDocument).width() || $(svgDocument).attr("width"));
-					height = parseInt($(svgDocument).height() || $(svgDocument).attr("height"));
-					shapeConfig = {
-						rootEle: svgRootElement,
-						defsEle: defsElement,
-						width: width,
-						height: height,
-						name: shapeName
-					}
-					var upperLeft= {x: ui.position.left, y: ui.position.top}
-					shape = canvas.addShape(shapeConfig);
+					var shapeConfig = $("#palette").palette("getGroupFeed", shapeName);
+					var upperLeft= {x: event.pageX - shapeConfig.width /2, y: event.pageY - shapeConfig.height /2}
+					var shape = canvas.addShape(shapeConfig);
 					shape.moveByDragPosition(upperLeft);
 					//canvas.svgWrapper.add(group);
 				}
@@ -202,28 +477,11 @@
 			canvas.clear();
 			canvas.id = json.id;
 			var shapes = json.shapes;
-			var shapeStencils = $("#canvas").data("palette").shapeStencils;
 			$(shapes).each(function() {
-				var name = this.name;
-				var svgDocument = $("#canvas").utility("newSVGElement", shapeStencils[name]["origin"]);
-				var svgRootElement;
-				var defsElement;
-				var config;
-				if (!svgDocument) {
-					return;
-				}
-				svgRootElement = svgDocument.getElementsByTagName("g")[0];
-				defsElement = svgDocument.getElementsByTagName("defs")[0];
-				config = {
-						rootEle: svgRootElement,
-						defsEle: defsElement,
-						width: parseInt($(svgDocument).width() || $(svgDocument).attr("width")),
-						height: parseInt($(svgDocument).height() || $(svgDocument).attr("height")),
-						name: name,
-						angle: this.angle,
-						scale: this.scale,
-						upperLeft: this.position
-				}
+				var config = $("#palette").palette("getGroupFeed", this.name, this.path);
+				config.angle = this.angle;
+				config.scale = this.scale;
+				config.upperLeft = this.position;
 				canvas.addShape(config);
 			})
 		},
@@ -297,6 +555,7 @@
 			"defsEle": null,
 			"scale": "",
 			"angle": "",
+			"path": "",
 			"upperLeft": null
 			
 		},
@@ -327,7 +586,7 @@
 
 			this.shapeConfig = shapeConfig;
 			
-			this.id = $("#canvas").utility("genUUID");
+			this.id = $("#diagramEditor").utility("genUUID");
 			this.name = shapeConfig.name;
 			
 			this.node = svgWrapper.group(this.id);
@@ -521,11 +780,12 @@
 			//console.log(this.upperLeft, this.lowerRight);
 		},
 		getCanvasPosition: function(position) {
-			var screenCTM = this.canvas.svgWrapper.root().getScreenCTM();
+			//var screenCTM = this.canvas.svgWrapper.root().getScreenCTM();
+			var canvasOffset = this.canvas.element.offset();
 			var bodyScrollTop = document.body.scrollTop;
 			return {
-				"x" : position.x - screenCTM.e,
-				"y"	: position.y - screenCTM.f - bodyScrollTop
+				"x" : position.x - canvasOffset.left,//position.x - screenCTM.e,
+				"y"	: position.y - canvasOffset.top//position.y - screenCTM.f - bodyScrollTop
 			}
 		},
 		setPosition: function(position) {
@@ -544,7 +804,8 @@
 			"\"name\": \"" + this.name + "\"," +
 			"\"position\": { \"x\": " + this.upperLeft.x + ", \"y\": " + this.upperLeft.y + "}," +
 			"\"angle\": " + this.rotateAngle + "," +
-			"\"scale\": " + this.scaleNumber +
+			"\"scale\": " + this.scaleNumber + "," +
+			"\"path\": \"" + this.options.path + "\"" +
 			"}"
 		}
 	});
@@ -623,10 +884,10 @@
 				else if (this.name == 'scale') {
 					var cPos = gizmoButton.cPos;
 					var scaleReferPosition = {
-							x: cPos.x - gizmoButton.width/2,
-							y: cPos.y - gizmoButton.height/2
+							x: cPos.x,
+							y: cPos.y
 					}
-					$(node).shapeScale({scaleReferPosition: scaleReferPosition});
+					$(node).shapeScale({button: gizmoButton});
 				}
 				else if (this.name == 'del') {
 					$(node).shapeDelete({button: gizmoButton});

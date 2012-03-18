@@ -1,0 +1,12 @@
+name,path,centerPosition,group,order
+palette6_GB,svg/GB.svg,,palette,2
+palette6_GC,svg/GC.svg,,palette,3
+palette6_GD,svg/GD.svg,,palette,4
+GizmoContainer,svg/GizmoContainer.svg,"(0,0)",gizmo,1
+rotate,svg/rotate.svg,"(0,60)",gizmo,2
+move,svg/move.svg,"(0,0)",gizmo,3
+forward,svg/forward.svg,"(-60,0)",gizmo,4
+backward,svg/backward.svg,"(60,0)",gizmo,5
+copy,svg/copy.svg,"(-55,-55)",gizmo,6
+scale,svg/scale.svg,"(0,-60)",gizmo,7
+del,svg/delete.svg,"(55,-55)",gizmo,8
