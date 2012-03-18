@@ -1,0 +1,2 @@
+name,path,gizmoPath,rowsNum,colsNum
+paletteTool,config/palettes.csv,config/defaultGizmo.csv,2,4

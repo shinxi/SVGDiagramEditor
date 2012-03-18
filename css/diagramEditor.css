@@ -2,28 +2,72 @@ body {
     background: #ddd;
     margin: 0 auto;
 }
-
+#editor {
+	width: 100%;
+	height: 100%;
+}
 #diagramEditor {
 	background: #fff;
-	width: 70%;
+	width: 100%;
 	margin: 0 auto;
-	height: 600px;
+	height: 100%;
 }
 
-#palette {
-	width: 30%;
+.diagram-left {
+	width: 20%;
 	float: left;
 	height: 100%;
 	border: 1px red solid;
+	padding: 0px 0px 0px 0px;
+	margin: 0px 0px 0px 0px;
+}
+
+.palette-toolbar {
+	width: 100%;
+	height: 33%;
+	border: 1px red solid;
+	padding: 0px 0px 0px 0px;
+	margin: 0px 0px 0px 0px;
+	position: relative;
+}
+
+.palette-toolbar-button{
+	position: absolute;
+	text-align: center;
+}
+
+.palette-toolbar-button svg{
+	position: relative;
+	top: 25%;
+	cursor: pointer;
+}
+
+#palette-toolbar-button-tooltip {
+	position: absolute;
+	display: none;
+}
+
+#palette {
+	width: 100%;
+	height: 66%;
+	border: 1px red solid;
+	padding: 0px 0px 0px 0px;
+	margin: 0px 0px 0px 0px;
 }
 
 #canvas {
-	width: 69%;
+	width: 79%;
 	float: left;
 	height: 100%;
 	background-color: #F0F0F0;
 	border: 1px blue solid;
 	overflow: auto;
+	padding: 0px 0px 0px 0px;
+}
+
+#canvas svg {
+	width: 100%;
+	height: 100%;
 }
 
 .palette-title{
@@ -31,10 +75,15 @@ body {
 	border-bottom: 1px solid black;
 }
 
+.palette-groups {
+	position: relative;
+}
+
 .palette-group {
+	position: absolute;
 	width: 100%;
 	text-align: center;
-	border-bottom: 1px solid black;
+	margin-top: 0px;
 }
 
 .palette-group svg{
