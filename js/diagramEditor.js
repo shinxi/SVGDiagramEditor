@@ -1,7 +1,9 @@
 /**
- * Diagram editor plugin. Five widgets are concluded in this plugin.
+ * Diagram editor plugin. Seven widgets are concluded in this plugin.
  * Widgets:
- *   editor.SVGDiagram: The whole interface to be invoked outside.
+ *   editor.SVGDiagram: The top interface to be invoked outside.
+ *   editor.paletteToolbar: palette selection tool bar. Functions: palette tool bar generation, palette load.
+ *   editor.buttonTooltip: palette selection element tooltip. Functions: show tooltip, hide tooltip.
  *   editor.palette: palette object. Functions: palette generation, shape drag definition. 
  *   editor.canvas: canvas object. Functions: canvas generation, shape drop definition, add shape into canvas and so on.
  *   editor.shape: shape object. Functions: shape generation, shape move, shape scale, shape rotate, show shape gizmo, and so on.
@@ -55,13 +57,13 @@
 				}
 			},
 			controlHTML: "",
-			configPath : "config/config.csv"
+			configPath : "config/config.csv",
+			//Default gizmo config path
+			gizmoPath: "config/defaultGizmo.csv"
 		},
 		_create: function() {
 			//Cache svgs of palette.
 			this.palettes = {};
-			//Default gizmo config path
-			this.gizmoPath;
 			this.init();
 		},
 		init: function(container) {
@@ -90,7 +92,6 @@
 				var result = $("#diagramEditor").utility("parseCSVFileToJSON", csvData);
 				if (result.rows && result.rows.length > 0) {
 					diagram.loadPaletteToolBar(result.rows[0]);
-					diagram.gizmoPath = result.rows[0].gizmoPath;
 				}
 			});
 			element.show();
@@ -137,8 +138,9 @@
 		},
 		load: function(diagramId) {
 			var self = this;
+			var gizmoPath = this.options.gizmoPath;
 			
-			$.get(this.gizmoPath, function(csvData){
+			$.get(gizmoPath, function(csvData){
 				var result = $("#diagramEditor").utility("parseCSVFileToJSON", csvData);
 				$("#canvas").canvas("initCanvasGizmo", result.gizmo);
 			});
@@ -148,7 +150,6 @@
 			})
 		},
 		resize: function() {
-			this.element.width($(window).width()).height($(window).height());
 			this.resetDiagramSize();
 			this.element.find(".palette-toolbar").paletteToolbar("genPaletteToolbar");
 			this.element.find("#palette").palette("genPalette");
@@ -246,11 +247,11 @@
 		   			$(document.body).buttonTooltip("hide");
 		   		})
 		   		$(svgElement).bind("click", function(event){
-		   			paletteToolbar.loadSVGs(obj);
+		   			paletteToolbar.loadPalette(obj);
 		   		})
 			})
 		},
-		loadSVGs: function(config) {
+		loadPalette: function(config) {
 			$.get(config.path, function(csvData){
 				var result = $("#diagramEditor").utility("parseCSVFileToJSON", csvData);
 				$("#palette").palette("initPalette", config, result.palette);

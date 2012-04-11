@@ -37,7 +37,7 @@
     	"</div>" +
     	"</form>";
     	
-    	//controlHTML = "";
+    	controlHTML = "";
     	
     	$("#editor").SVGDiagram({controlHTML: controlHTML});
     	
@@ -60,6 +60,7 @@
    			});
     	})
     	$(window).resize(function() {
+    		$("#editor").width($(window).width()).height($(window).height());
     		$("#editor").SVGDiagram("resize");
     	})
     	
