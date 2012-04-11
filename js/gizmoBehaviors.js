@@ -382,7 +382,7 @@
 			var angle = Math.PI * rotateAngle / 180;
 			
 			//var newX = (currentMousePosition.y - referPosition.y) * Math.sin(angle) + (currentMousePosition.x - referPosition.x) * Math.cos(angle);
-			var newY = (currentMousePosition.x - referPosition.x) * Math.sin(angle) - (currentMousePosition.y - referPosition.y) * Math.cos(angle);
+			var newY = referPosition.y - currentMousePosition.y;
 			
 			var scaleNumber;
 			curLen = Math.abs(newY);
