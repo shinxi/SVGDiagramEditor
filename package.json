@@ -1,0 +1,13 @@
+{
+  "name": "svg-diagram-editor",
+  "version": "1.0.0-alpha",
+  "description": "SVG Diagram Editor",
+  "scripts": {
+    "start": "node ./run.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "express": "^4.15.2",
+    "yargs": "^7.0.2"
+  }
+}
